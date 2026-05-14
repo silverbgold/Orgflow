@@ -1,0 +1,2533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OrgFlow — Cloud</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""></script>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e6e8ec;
+    --border-strong: #d4d8df;
+    --text: #1a1d23;
+    --text-muted: #6b7280;
+    --text-faint: #9ca3af;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --primary-soft: #eef2ff;
+    --accent-green: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-rose: #ef4444;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+    --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.06);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --radius-lg: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+
+  input, textarea, select {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  /* Layout */
+  .app {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px 18px;
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+
+  .logo-mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+    display: grid;
+    place-items: center;
+    color: white;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-weight: 500;
+    text-align: left;
+    width: 100%;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .nav-btn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .nav-btn.active {
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .nav-btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    padding: 16px 12px 6px;
+  }
+
+  /* Main content */
+  .main {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    flex-shrink: 0;
+  }
+
+  .topbar h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .topbar-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    font-size: 13px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  .btn:hover { background: var(--surface-2); }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .btn-primary:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+  }
+
+  .btn-danger {
+    color: var(--accent-rose);
+    border-color: var(--border);
+  }
+
+  .btn-danger:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+
+  .btn-ghost { border-color: transparent; }
+
+  .view {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+  }
+
+  .view.hidden { display: none; }
+
+  /* ----------- Board ----------- */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .column {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+    overflow: hidden;
+  }
+
+  .column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding: 0 4px;
+  }
+
+  .column-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .column-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .column[data-status="todo"] .column-dot { background: #94a3b8; }
+  .column[data-status="in-progress"] .column-dot { background: var(--accent-amber); }
+  .column[data-status="done"] .column-dot { background: var(--accent-green); }
+
+  .column-count {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 12px;
+  }
+
+  .add-card-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    color: var(--text-muted);
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+    transition: background 0.12s;
+  }
+  .add-card-btn:hover { background: var(--border); }
+
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    padding: 2px;
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    cursor: grab;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.12s, transform 0.06s;
+  }
+
+  .card:hover { box-shadow: var(--shadow-md); }
+  .card:active { cursor: grabbing; }
+  .card.dragging { opacity: 0.5; }
+
+  .card-title {
+    font-weight: 500;
+    font-size: 13.5px;
+    margin-bottom: 6px;
+    line-height: 1.35;
+  }
+
+  .card-desc {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-bottom: 8px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+
+  .chip.client { background: var(--primary-soft); color: var(--primary); }
+  .chip.due { background: #fef3c7; color: #92400e; }
+  .chip.due.overdue { background: #fee2e2; color: #991b1b; }
+
+  .column.drag-over .cards { background: rgba(79, 70, 229, 0.06); border-radius: 6px; }
+
+  /* ----------- Clients ----------- */
+  .clients-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 16px;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .client-list {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .client-list-header {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .client-list-header strong {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .search-input:focus {
+    outline: none;
+    background: var(--surface);
+    border-color: var(--primary);
+  }
+
+  .client-search-wrap {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .client-items {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .client-item {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .client-item:hover { background: var(--surface-2); }
+  .client-item.active { background: var(--primary-soft); }
+
+  .client-item-name {
+    font-weight: 500;
+    font-size: 13.5px;
+    margin-bottom: 2px;
+  }
+
+  .client-item-sub {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .client-detail {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 40px;
+  }
+
+  .empty-state-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--surface-2);
+    display: grid;
+    place-items: center;
+    margin-bottom: 14px;
+    color: var(--text-faint);
+  }
+
+  .client-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+
+  .client-name-big {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+
+  .client-contact-row {
+    color: var(--text-muted);
+    font-size: 13px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .client-contact-row span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .section-block {
+    margin-top: 24px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .notes-area {
+    width: 100%;
+    min-height: 80px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    resize: vertical;
+    background: var(--surface);
+    transition: border-color 0.12s;
+  }
+  .notes-area:focus { outline: none; border-color: var(--primary); }
+
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    background: var(--surface);
+    transition: background 0.12s;
+  }
+  .task-row:hover { background: var(--surface-2); }
+
+  .task-checkbox {
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    background: var(--surface);
+    display: grid;
+    place-items: center;
+    transition: all 0.12s;
+  }
+  .task-checkbox.checked {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+
+  .task-row.done .task-title-text {
+    text-decoration: line-through;
+    color: var(--text-faint);
+  }
+
+  .task-title-text { flex: 1; font-size: 13.5px; }
+  .task-status-pill {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .task-delete {
+    color: var(--text-faint);
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 4px;
+    transition: all 0.12s;
+    opacity: 0;
+  }
+  .task-row:hover .task-delete { opacity: 1; }
+  .task-delete:hover { background: #fef2f2; color: var(--accent-rose); }
+
+  .add-inline {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .add-inline input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+  .add-inline input:focus { outline: none; border-color: var(--primary); }
+  .add-inline input[type="date"] { flex: 0 0 140px; }
+
+  .appt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    background: var(--surface);
+  }
+  .appt-row:hover { background: var(--surface-2); }
+  .appt-when {
+    font-weight: 500;
+    font-size: 13.5px;
+  }
+  .appt-notes {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-top: 2px;
+  }
+
+  /* ----------- Calendar ----------- */
+  .calendar-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+
+  .calendar-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .cal-month-label {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .cal-nav {
+    display: flex;
+    gap: 6px;
+  }
+
+  .cal-nav .btn { padding: 6px 10px; }
+
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .cal-weekday {
+    background: var(--surface-2);
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .cal-day {
+    background: var(--surface);
+    min-height: 100px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .cal-day:hover { background: var(--surface-2); }
+
+  .cal-day.other-month {
+    background: var(--bg);
+    color: var(--text-faint);
+  }
+
+  .cal-day-num {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    align-self: flex-start;
+  }
+
+  .cal-day.today .cal-day-num {
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    font-weight: 600;
+  }
+
+  .cal-event {
+    background: var(--primary-soft);
+    color: var(--primary);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cal-event.task {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .cal-event.task.done {
+    background: var(--surface-2);
+    color: var(--text-faint);
+    text-decoration: line-through;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    backdrop-filter: blur(2px);
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow-lg);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .modal-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .modal-close {
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    transition: background 0.12s;
+  }
+  .modal-close:hover { background: var(--surface-2); }
+
+  .modal-body {
+    padding: 20px 22px;
+    overflow-y: auto;
+  }
+
+  .modal-footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    transition: border-color 0.12s;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+  .form-group textarea {
+    resize: vertical;
+    min-height: 70px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Confirm modal */
+  .confirm-text {
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Estimates */
+  .estimate-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .estimate-row:hover { background: var(--surface-2); border-color: var(--border-strong); }
+
+  .estimate-main { flex: 1; min-width: 0; }
+  .estimate-title-text {
+    font-weight: 500;
+    font-size: 13.5px;
+    margin-bottom: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .estimate-sub {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .estimate-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .estimate-amount {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .status-pill {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-weight: 500;
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+  .status-pill.draft { background: var(--surface-2); color: var(--text-muted); }
+  .status-pill.sent { background: #dbeafe; color: #1e40af; }
+  .status-pill.accepted { background: #d1fae5; color: #065f46; }
+  .status-pill.declined { background: #fee2e2; color: #991b1b; }
+
+  .estimates-summary {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .estimates-summary strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Line items in modal */
+  .line-items {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .line-item-header,
+  .line-item-row {
+    display: grid;
+    grid-template-columns: 1fr 70px 100px 28px;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 8px;
+  }
+  .line-item-header {
+    background: var(--surface-2);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: 7px 8px;
+  }
+  .line-item-row {
+    border-top: 1px solid var(--border);
+  }
+  .line-item-row input {
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface);
+    font-size: 13px;
+  }
+  .line-item-row input:focus { outline: none; border-color: var(--primary); }
+  .line-item-row input[type="number"] { text-align: right; font-variant-numeric: tabular-nums; }
+  .line-item-remove {
+    color: var(--text-faint);
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    display: grid;
+    place-items: center;
+    transition: background 0.12s, color 0.12s;
+  }
+  .line-item-remove:hover {
+    background: #fef2f2;
+    color: var(--accent-rose);
+  }
+  .line-items-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .line-items-footer strong {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .add-line-btn {
+    color: var(--primary);
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.12s;
+  }
+  .add-line-btn:hover { background: var(--primary-soft); }
+
+  /* Map */
+  .map-container {
+    height: 220px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .map-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .map-status {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .map-status.error { color: var(--accent-rose); }
+  .geocode-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .geocode-row textarea { flex: 1; }
+  .geocode-row button { white-space: nowrap; align-self: flex-start; }
+  .geocode-hint {
+    font-size: 11.5px;
+    color: var(--text-faint);
+    margin-top: 4px;
+  }
+
+  /* Scrollbar polish */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 6px;
+    border: 2px solid var(--surface);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+
+  /* Auth screen */
+  .auth-shell {
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #f7f8fa 0%, #eef2ff 100%);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 200;
+  }
+  .auth-shell.hidden { display: none; }
+  .auth-card {
+    background: var(--surface); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg); padding: 36px 32px;
+    width: 100%; max-width: 380px;
+  }
+  .auth-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 18px; margin-bottom: 6px;
+  }
+  .auth-tagline { color: var(--text-muted); font-size: 13.5px; margin-bottom: 26px; }
+  .auth-tabs {
+    display: flex; gap: 4px; margin-bottom: 18px;
+    background: var(--surface-2); border-radius: 8px; padding: 3px;
+  }
+  .auth-tab {
+    flex: 1; padding: 8px 12px; border-radius: 6px;
+    font-weight: 500; color: var(--text-muted); transition: all 0.12s;
+  }
+  .auth-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+  .auth-form .form-group { margin-bottom: 12px; }
+  .auth-error {
+    padding: 9px 12px; background: #fee2e2; color: #991b1b;
+    border-radius: 6px; font-size: 12.5px; margin-bottom: 12px; display: none;
+  }
+  .auth-error.show { display: block; }
+  .auth-success {
+    padding: 9px 12px; background: #d1fae5; color: #065f46;
+    border-radius: 6px; font-size: 12.5px; margin-bottom: 12px; display: none;
+  }
+  .auth-success.show { display: block; }
+  .auth-submit { width: 100%; padding: 10px; font-size: 14px; font-weight: 600; }
+  .auth-footer-text { text-align: center; margin-top: 18px; color: var(--text-muted); font-size: 12.5px; }
+  .config-warning {
+    background: #fef3c7; border: 1px solid #fcd34d; color: #92400e;
+    padding: 14px 16px; border-radius: 8px; font-size: 13px;
+    margin-bottom: 18px; line-height: 1.5;
+  }
+  .config-warning code {
+    background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 3px;
+    font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  .user-chip {
+    margin-top: auto; padding: 10px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .user-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), #7c3aed);
+    color: white; display: grid; place-items: center;
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+  }
+  .user-info { flex: 1; min-width: 0; }
+  .user-email {
+    font-size: 12px; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .user-signout { color: var(--text-faint); font-size: 11.5px; }
+  .user-signout:hover { color: var(--accent-rose); }
+  .loading-shell {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 150; gap: 12px; color: var(--text-muted); font-size: 14px;
+  }
+  .loading-shell.hidden { display: none; }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2.5px solid var(--border-strong);
+    border-top-color: var(--primary);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar {
+      flex-direction: row;
+      overflow-x: auto;
+      padding: 10px;
+      gap: 6px;
+    }
+    .logo { padding: 6px 10px; }
+    .sidebar-section-label { display: none; }
+    .nav-btn { white-space: nowrap; }
+    .board { grid-template-columns: 1fr; }
+    .clients-layout { grid-template-columns: 1fr; }
+    .calendar-grid .cal-day { min-height: 70px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Auth screen -->
+<div class="auth-shell" id="auth-shell">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="logo-mark">O</div>
+      OrgFlow
+    </div>
+    <div class="auth-tagline">Sign in to your workspace</div>
+    <div id="config-warning-wrap"></div>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" data-tab="signin" onclick="setAuthMode('signin')">Sign in</button>
+      <button type="button" class="auth-tab" data-tab="signup" onclick="setAuthMode('signup')">Create account</button>
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+    <div class="auth-success" id="auth-success"></div>
+    <form class="auth-form" id="auth-form">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-email" required autocomplete="email" placeholder="you@example.com" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="auth-password" required autocomplete="current-password" minlength="6" placeholder="At least 6 characters" />
+      </div>
+      <button type="submit" class="btn btn-primary auth-submit" id="auth-submit">Sign in</button>
+    </form>
+    <div class="auth-footer-text">Your data is private — only you can see it.</div>
+  </div>
+</div>
+
+<div class="loading-shell hidden" id="loading-shell">
+  <div class="spinner"></div>
+  <span>Loading your workspace...</span>
+</div>
+
+<div class="app" id="main-app" style="display:none;">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">O</div>
+      <div>OrgFlow</div>
+    </div>
+    <div class="sidebar-section-label">Workspace</div>
+    <button class="nav-btn active" data-view="board">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="11" rx="1.5"/></svg>
+      Board
+    </button>
+    <button class="nav-btn" data-view="clients">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+      Clients
+    </button>
+    <button class="nav-btn" data-view="calendar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      Calendar
+    </button>
+
+    <div class="user-chip">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <div class="user-info">
+        <div class="user-email" id="user-email">—</div>
+        <button class="user-signout" id="signout-btn">Sign out</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="view-title">Board</h1>
+      <div class="topbar-actions" id="view-actions"></div>
+    </div>
+
+    <!-- Board -->
+    <div class="view" id="view-board">
+      <div class="board" id="board"></div>
+    </div>
+
+    <!-- Clients -->
+    <div class="view hidden" id="view-clients">
+      <div class="clients-layout">
+        <div class="client-list">
+          <div class="client-list-header">
+            <strong>Clients</strong>
+            <button class="btn btn-primary" id="new-client-btn">+ New</button>
+          </div>
+          <div class="client-search-wrap">
+            <input type="text" class="search-input" id="client-search" placeholder="Search clients..." />
+          </div>
+          <div class="client-items" id="client-items"></div>
+        </div>
+        <div class="client-detail" id="client-detail">
+          <div class="empty-state">
+            <div class="empty-state-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>
+            </div>
+            <div>Select a client to see their details, or create a new one.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendar -->
+    <div class="view hidden" id="view-calendar">
+      <div class="calendar-wrap">
+        <div class="calendar-toolbar">
+          <div class="cal-month-label" id="cal-month-label">Month Year</div>
+          <div class="cal-nav">
+            <button class="btn" id="cal-prev">‹</button>
+            <button class="btn" id="cal-today">Today</button>
+            <button class="btn" id="cal-next">›</button>
+          </div>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Generic modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Title</h3>
+      <button class="modal-close" id="modal-close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   OrgFlow - lightweight personal organizer
+   Storage: localStorage under key "orgflow.v1"
+   ============================================================ */
+
+// ====== CONFIG: paste your Supabase credentials here ======
+const SUPABASE_URL = "https://wdlygxmxhmqfuflirfgz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkbHlneG14aG1xZnVmbGlyZmd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxOTMzMjQsImV4cCI6MjA5Mzc2OTMyNH0.CyTlnnqgaS7BKI2Ui5kx8zLyudX3q6Td-HiuX449rFQ";
+// ==========================================================
+
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() :
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0; const v = c === "x" ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  })
+);
+
+let state = { clients: [], tasks: [], appointments: [], estimates: [] };
+let currentView = "board";
+let selectedClientId = null;
+let calCursor = new Date();
+let supaClient = null;
+let currentUser = null;
+
+// ---- DB <-> App field mapping ----
+function dbToClient(r) { return { id:r.id, name:r.name, email:r.email||"", phone:r.phone||"", address:r.address||"", lat:r.lat, lng:r.lng, geocodedAddress:r.geocoded_address||"", notes:r.notes||"" }; }
+function clientToDb(c) { return { id:c.id, name:c.name, email:c.email||null, phone:c.phone||null, address:c.address||null, lat:c.lat??null, lng:c.lng??null, geocoded_address:c.geocodedAddress||null, notes:c.notes||null }; }
+function dbToTask(r) { return { id:r.id, title:r.title, description:r.description||"", status:r.status, clientId:r.client_id||null, dueDate:r.due_date||"" }; }
+function taskToDb(t) { return { id:t.id, title:t.title, description:t.description||null, status:t.status, client_id:t.clientId||null, due_date:t.dueDate||null }; }
+function dbToAppt(r) { return { id:r.id, clientId:r.client_id, date:r.date, time:r.time||"", notes:r.notes||"" }; }
+function apptToDb(a) { return { id:a.id, client_id:a.clientId, date:a.date, time:a.time||null, notes:a.notes||null }; }
+function dbToEstimate(r) { return { id:r.id, clientId:r.client_id, title:r.title, date:r.date||"", status:r.status, notes:r.notes||"", lineItems:r.line_items||[] }; }
+function estimateToDb(e) { return { id:e.id, client_id:e.clientId, title:e.title, date:e.date||null, status:e.status, notes:e.notes||null, line_items:e.lineItems||[] }; }
+
+async function dbUpsert(table, row) {
+  const { data, error } = await supaClient.from(table).upsert(row).select().single();
+  if (error) throw error;
+  return data;
+}
+async function dbDelete(table, id) {
+  const { error } = await supaClient.from(table).delete().eq("id", id);
+  if (error) throw error;
+}
+async function loadAllData() {
+  const [c,t,a,e] = await Promise.all([
+    supaClient.from("clients").select("*").order("name"),
+    supaClient.from("tasks").select("*").order("created_at"),
+    supaClient.from("appointments").select("*").order("date"),
+    supaClient.from("estimates").select("*").order("date", {ascending:false}),
+  ]);
+  if (c.error) throw c.error; if (t.error) throw t.error;
+  if (a.error) throw a.error; if (e.error) throw e.error;
+  state.clients = c.data.map(dbToClient);
+  state.tasks = t.data.map(dbToTask);
+  state.appointments = a.data.map(dbToAppt);
+  state.estimates = e.data.map(dbToEstimate);
+}
+
+function saveState() { /* no-op in cloud mode */ }
+function showToastError(msg) { alert("Error: " + msg); }
+
+/* -------------------- Helpers -------------------- */
+
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function fmtDateLong(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+function todayISO() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+function isOverdue(iso) {
+  return iso && iso < todayISO();
+}
+
+/* -------------------- View routing -------------------- */
+
+document.querySelectorAll(".nav-btn").forEach(btn => {
+  btn.addEventListener("click", () => switchView(btn.dataset.view));
+});
+
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll(".nav-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.view === view);
+  });
+  document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+  document.getElementById("view-" + view).classList.remove("hidden");
+  const titleMap = { board: "Board", clients: "Clients", calendar: "Calendar" };
+  document.getElementById("view-title").textContent = titleMap[view];
+  renderTopbarActions();
+  if (view === "board") renderBoard();
+  if (view === "clients") renderClients();
+  if (view === "calendar") renderCalendar();
+}
+
+function renderTopbarActions() {
+  const el = document.getElementById("view-actions");
+  el.innerHTML = "";
+  if (currentView === "board") {
+    const b = document.createElement("button");
+    b.className = "btn btn-primary";
+    b.textContent = "+ New task";
+    b.onclick = () => openTaskModal(null);
+    el.appendChild(b);
+  } else if (currentView === "clients") {
+    // handled inside clients panel
+  } else if (currentView === "calendar") {
+    const b = document.createElement("button");
+    b.className = "btn btn-primary";
+    b.textContent = "+ New appointment";
+    b.onclick = () => openAppointmentModal(null);
+    el.appendChild(b);
+  }
+}
+
+/* -------------------- BOARD -------------------- */
+
+const COLUMNS = [
+  { id: "todo", title: "To Do" },
+  { id: "in-progress", title: "In Progress" },
+  { id: "done", title: "Done" },
+];
+
+function renderBoard() {
+  const root = document.getElementById("board");
+  root.innerHTML = "";
+  COLUMNS.forEach(col => {
+    const tasks = state.tasks.filter(t => t.status === col.id);
+    const colEl = document.createElement("div");
+    colEl.className = "column";
+    colEl.dataset.status = col.id;
+
+    colEl.innerHTML = `
+      <div class="column-header">
+        <div class="column-title">
+          <div class="column-dot"></div>
+          <span>${col.title}</span>
+          <span class="column-count">${tasks.length}</span>
+        </div>
+        <button class="add-card-btn" title="Add task">+</button>
+      </div>
+      <div class="cards" data-status="${col.id}"></div>
+    `;
+    colEl.querySelector(".add-card-btn").onclick = () => openTaskModal(null, col.id);
+
+    const cardsEl = colEl.querySelector(".cards");
+    tasks.forEach(t => cardsEl.appendChild(buildCard(t)));
+
+    // Drop targets
+    cardsEl.addEventListener("dragover", e => {
+      e.preventDefault();
+      colEl.classList.add("drag-over");
+    });
+    cardsEl.addEventListener("dragleave", () => colEl.classList.remove("drag-over"));
+    cardsEl.addEventListener("drop", async e => {
+      e.preventDefault();
+      colEl.classList.remove("drag-over");
+      const id = e.dataTransfer.getData("text/plain");
+      const task = state.tasks.find(t => t.id === id);
+      if (task && task.status !== col.id) {
+        const oldStatus = task.status;
+        task.status = col.id;
+        renderBoard();
+        try { await dbUpsert("tasks", taskToDb(task)); }
+        catch (err) { task.status = oldStatus; showToastError(err.message); renderBoard(); }
+      }
+    });
+
+    root.appendChild(colEl);
+  });
+}
+
+function buildCard(task) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.draggable = true;
+  el.dataset.id = task.id;
+
+  const client = task.clientId ? state.clients.find(c => c.id === task.clientId) : null;
+  const overdueClass = isOverdue(task.dueDate) && task.status !== "done" ? " overdue" : "";
+
+  el.innerHTML = `
+    <div class="card-title"></div>
+    ${task.description ? '<div class="card-desc"></div>' : ""}
+    <div class="card-meta">
+      ${client ? `<span class="chip client">${escapeHtml(client.name)}</span>` : ""}
+      ${task.dueDate ? `<span class="chip due${overdueClass}">📅 ${fmtDate(task.dueDate)}</span>` : ""}
+    </div>
+  `;
+  el.querySelector(".card-title").textContent = task.title;
+  if (task.description) el.querySelector(".card-desc").textContent = task.description;
+
+  el.addEventListener("click", () => openTaskModal(task.id));
+  el.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", task.id);
+    el.classList.add("dragging");
+  });
+  el.addEventListener("dragend", () => el.classList.remove("dragging"));
+  return el;
+}
+
+/* -------------------- TASK MODAL -------------------- */
+
+function openTaskModal(id, defaultStatus = "todo", defaultClientId = null) {
+  const isEdit = Boolean(id);
+  const task = isEdit ? state.tasks.find(t => t.id === id) : null;
+  const t = task || {
+    id: uid(),
+    title: "",
+    description: "",
+    status: defaultStatus,
+    clientId: defaultClientId,
+    dueDate: "",
+  };
+
+  const clientOptions = ['<option value="">— None —</option>']
+    .concat(state.clients.map(c => `<option value="${c.id}" ${c.id === t.clientId ? "selected" : ""}>${escapeHtml(c.name)}</option>`))
+    .join("");
+
+  showModal({
+    title: isEdit ? "Edit Task" : "New Task",
+    body: `
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="f-title" value="${escapeAttr(t.title)}" placeholder="What needs doing?" />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="f-desc" placeholder="Optional details">${escapeHtml(t.description || "")}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select id="f-status">
+            <option value="todo" ${t.status === "todo" ? "selected" : ""}>To Do</option>
+            <option value="in-progress" ${t.status === "in-progress" ? "selected" : ""}>In Progress</option>
+            <option value="done" ${t.status === "done" ? "selected" : ""}>Done</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Due date</label>
+          <input type="date" id="f-due" value="${t.dueDate || ""}" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Client</label>
+        <select id="f-client">${clientOptions}</select>
+      </div>
+    `,
+    footer: [
+      isEdit ? { label: "Delete", className: "btn btn-danger", onClick: () => {
+        confirmAction("Delete this task?", async () => {
+          try {
+            await dbDelete("tasks", t.id);
+            state.tasks = state.tasks.filter(x => x.id !== t.id);
+            closeModal();
+            rerender();
+          } catch (err) { showToastError(err.message); }
+        });
+      }} : null,
+      { label: "Cancel", className: "btn", onClick: closeModal },
+      { label: isEdit ? "Save" : "Create", className: "btn btn-primary", onClick: async (ev) => {
+        const title = document.getElementById("f-title").value.trim();
+        if (!title) { alert("Title is required"); return; }
+        const btn = ev.target; btn.disabled = true; btn.textContent = "Saving...";
+        const updated = {
+          ...t, title,
+          description: document.getElementById("f-desc").value.trim(),
+          status: document.getElementById("f-status").value,
+          dueDate: document.getElementById("f-due").value || "",
+          clientId: document.getElementById("f-client").value || null,
+        };
+        try {
+          const saved = dbToTask(await dbUpsert("tasks", taskToDb(updated)));
+          if (isEdit) {
+            const idx = state.tasks.findIndex(x => x.id === t.id);
+            state.tasks[idx] = saved;
+          } else { state.tasks.push(saved); }
+          closeModal(); rerender();
+        } catch (err) {
+          showToastError(err.message);
+          btn.disabled = false; btn.textContent = isEdit ? "Save" : "Create";
+        }
+      }},
+    ].filter(Boolean),
+  });
+
+  setTimeout(() => document.getElementById("f-title").focus(), 30);
+}
+
+/* -------------------- CLIENTS -------------------- */
+
+function renderClients() {
+  const list = document.getElementById("client-items");
+  list.innerHTML = "";
+  const search = (document.getElementById("client-search").value || "").toLowerCase();
+  const filtered = state.clients
+    .filter(c => !search || c.name.toLowerCase().includes(search) || (c.email||"").toLowerCase().includes(search))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">${state.clients.length === 0 ? "No clients yet. Click + New to add one." : "No matches."}</div>`;
+  } else {
+    filtered.forEach(c => {
+      const el = document.createElement("div");
+      el.className = "client-item" + (c.id === selectedClientId ? " active" : "");
+      el.innerHTML = `
+        <div class="client-item-name"></div>
+        <div class="client-item-sub"></div>
+      `;
+      el.querySelector(".client-item-name").textContent = c.name;
+      el.querySelector(".client-item-sub").textContent = c.email || c.phone || "—";
+      el.onclick = () => { selectedClientId = c.id; renderClients(); };
+      list.appendChild(el);
+    });
+  }
+
+  renderClientDetail();
+}
+
+function renderClientDetail() {
+  const root = document.getElementById("client-detail");
+  if (!selectedClientId) {
+    root.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>
+        </div>
+        <div>Select a client to see their details, or create a new one.</div>
+      </div>
+    `;
+    return;
+  }
+  const c = state.clients.find(x => x.id === selectedClientId);
+  if (!c) {
+    selectedClientId = null;
+    renderClientDetail();
+    return;
+  }
+  const tasks = state.tasks.filter(t => t.clientId === c.id);
+  const appts = state.appointments.filter(a => a.clientId === c.id).sort((a, b) => (a.date+a.time).localeCompare(b.date+b.time));
+  const estimates = state.estimates.filter(e => e.clientId === c.id).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const estTotal = estimates.reduce((sum, e) => sum + estimateTotal(e), 0);
+  const estAccepted = estimates.filter(e => e.status === "accepted").reduce((s, e) => s + estimateTotal(e), 0);
+
+  root.innerHTML = `
+    <div class="client-header">
+      <div>
+        <h2 class="client-name-big"></h2>
+        <div class="client-contact-row">
+          ${c.email ? `<span>✉️ <span class="ce"></span></span>` : ""}
+          ${c.phone ? `<span>📞 <span class="cp"></span></span>` : ""}
+          ${c.address ? `<span>📍 <span class="ca"></span></span>` : ""}
+        </div>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="btn" id="edit-client">Edit</button>
+        <button class="btn btn-danger" id="delete-client">Delete</button>
+      </div>
+    </div>
+
+    ${c.address ? `
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-title">Location</div>
+        ${c.lat != null ? `<a class="btn btn-ghost" href="https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}" target="_blank" rel="noopener">Open in Google Maps ↗</a>` : `<button class="btn" id="locate-now-btn">📍 Locate</button>`}
+      </div>
+      ${c.lat != null
+        ? `<div class="map-container" id="client-map-${c.id}"></div>`
+        : `<div class="map-status">No coordinates saved yet. Click Locate to find this address on the map.</div>`}
+    </div>
+    ` : ""}
+
+    <div class="section-block">
+      <div class="section-header"><div class="section-title">Notes</div></div>
+      <textarea class="notes-area" id="client-notes" placeholder="Add notes about this client...">${escapeHtml(c.notes || "")}</textarea>
+    </div>
+
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-title">Appointments (${appts.length})</div>
+        <button class="btn" id="add-appt-btn">+ Schedule</button>
+      </div>
+      <div id="appt-list"></div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-title">Estimates (${estimates.length})</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          ${estimates.length > 0 ? `<div class="estimates-summary">Total: <strong>${formatMoney(estTotal)}</strong>${estAccepted > 0 ? ` · Accepted: <strong>${formatMoney(estAccepted)}</strong>` : ""}</div>` : ""}
+          <button class="btn" id="add-estimate-btn">+ New estimate</button>
+        </div>
+      </div>
+      <div id="estimate-list"></div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-title">Tasks (${tasks.length})</div>
+      </div>
+      <div id="client-tasks"></div>
+      <div class="add-inline">
+        <input type="text" id="quick-task-title" placeholder="Add a task..." />
+        <input type="date" id="quick-task-due" />
+        <button class="btn btn-primary" id="quick-task-add">Add</button>
+      </div>
+    </div>
+  `;
+
+  root.querySelector(".client-name-big").textContent = c.name;
+  if (c.email) root.querySelector(".ce").textContent = c.email;
+  if (c.phone) root.querySelector(".cp").textContent = c.phone;
+  if (c.address) root.querySelector(".ca").textContent = c.address;
+
+  // Render mini map if we have coords
+  if (c.address && c.lat != null && c.lng != null) {
+    renderMiniMap("client-map-" + c.id, c.lat, c.lng, c.name);
+  }
+
+  // Wire up locate button for clients with address but no coords
+  const locateNowBtn = document.getElementById("locate-now-btn");
+  if (locateNowBtn) {
+    locateNowBtn.onclick = async () => {
+      locateNowBtn.disabled = true;
+      locateNowBtn.textContent = "Locating...";
+      try {
+        const result = await geocodeAddress(c.address);
+        if (result) {
+          c.lat = result.lat;
+          c.lng = result.lng;
+          c.geocodedAddress = c.address;
+          await dbUpsert("clients", clientToDb(c));
+          renderClientDetail();
+        } else {
+          locateNowBtn.textContent = "No match — try editing the address";
+        }
+      } catch (err) {
+        locateNowBtn.disabled = false;
+        locateNowBtn.textContent = "📍 Locate (failed, retry)";
+      }
+    };
+  }
+
+  // Notes autosave on blur
+  document.getElementById("client-notes").addEventListener("blur", async e => {
+    if (c.notes === e.target.value) return;
+    c.notes = e.target.value;
+    try { await dbUpsert("clients", clientToDb(c)); }
+    catch (err) { showToastError(err.message); }
+  });
+
+  document.getElementById("edit-client").onclick = () => openClientModal(c.id);
+  document.getElementById("delete-client").onclick = () => {
+    confirmAction(`Delete "${c.name}"? Their tasks will be unlinked but kept on the board. Their appointments and estimates will be removed.`, async () => {
+      try {
+        const linked = state.tasks.filter(t => t.clientId === c.id);
+        for (const t of linked) { t.clientId = null; await dbUpsert("tasks", taskToDb(t)); }
+        await dbDelete("clients", c.id);
+        state.clients = state.clients.filter(x => x.id !== c.id);
+        state.appointments = state.appointments.filter(a => a.clientId !== c.id);
+        state.estimates = state.estimates.filter(ev => ev.clientId !== c.id);
+        selectedClientId = null;
+        renderClients();
+      } catch (err) { showToastError(err.message); }
+    });
+  };
+
+  // Appointments
+  const apptList = document.getElementById("appt-list");
+  if (appts.length === 0) {
+    apptList.innerHTML = `<div style="color: var(--text-faint); font-size: 13px; padding: 6px 0;">No upcoming appointments.</div>`;
+  } else {
+    appts.forEach(a => {
+      const row = document.createElement("div");
+      row.className = "appt-row";
+      row.innerHTML = `
+        <div>
+          <div class="appt-when"></div>
+          ${a.notes ? '<div class="appt-notes"></div>' : ""}
+        </div>
+        <div style="display:flex; gap:4px;">
+          <button class="btn btn-ghost" data-act="edit">Edit</button>
+          <button class="btn btn-ghost btn-danger" data-act="del">Remove</button>
+        </div>
+      `;
+      const whenStr = `${fmtDateLong(a.date)}${a.time ? " · " + a.time : ""}`;
+      row.querySelector(".appt-when").textContent = whenStr;
+      if (a.notes) row.querySelector(".appt-notes").textContent = a.notes;
+      row.querySelector('[data-act="edit"]').onclick = () => openAppointmentModal(a.id);
+      row.querySelector('[data-act="del"]').onclick = () => {
+        confirmAction("Remove this appointment?", async () => {
+          try {
+            await dbDelete("appointments", a.id);
+            state.appointments = state.appointments.filter(x => x.id !== a.id);
+            renderClientDetail();
+          } catch (err) { showToastError(err.message); }
+        });
+      };
+      apptList.appendChild(row);
+    });
+  }
+
+  document.getElementById("add-appt-btn").onclick = () => openAppointmentModal(null, c.id);
+
+  // Estimates
+  const estList = document.getElementById("estimate-list");
+  if (estimates.length === 0) {
+    estList.innerHTML = `<div style="color: var(--text-faint); font-size: 13px; padding: 6px 0;">No estimates yet. Click + New estimate to create one.</div>`;
+  } else {
+    estimates.forEach(est => {
+      const row = document.createElement("div");
+      row.className = "estimate-row";
+      const itemCount = (est.lineItems || []).length;
+      row.innerHTML = `
+        <div class="estimate-main">
+          <div class="estimate-title-text"></div>
+          <div class="estimate-sub">
+            ${est.date ? fmtDateLong(est.date) : "No date"} · ${itemCount} ${itemCount === 1 ? "item" : "items"}
+          </div>
+        </div>
+        <div class="estimate-right">
+          <span class="status-pill ${est.status || "draft"}">${statusLabelEstimate(est.status)}</span>
+          <span class="estimate-amount">${formatMoney(estimateTotal(est))}</span>
+        </div>
+      `;
+      row.querySelector(".estimate-title-text").textContent = est.title || "Untitled estimate";
+      row.onclick = () => openEstimateModal(est.id);
+      estList.appendChild(row);
+    });
+  }
+  document.getElementById("add-estimate-btn").onclick = () => openEstimateModal(null, c.id);
+
+  // Tasks
+  const taskList = document.getElementById("client-tasks");
+  if (tasks.length === 0) {
+    taskList.innerHTML = `<div style="color: var(--text-faint); font-size: 13px; padding: 6px 0;">No tasks yet.</div>`;
+  } else {
+    tasks.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "task-row" + (t.status === "done" ? " done" : "");
+      row.innerHTML = `
+        <div class="task-checkbox ${t.status === "done" ? "checked" : ""}" title="Toggle done">
+          ${t.status === "done" ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ""}
+        </div>
+        <div class="task-title-text"></div>
+        ${t.dueDate ? `<span class="chip due${isOverdue(t.dueDate) && t.status !== "done" ? " overdue" : ""}">📅 ${fmtDate(t.dueDate)}</span>` : ""}
+        <span class="task-status-pill">${statusLabel(t.status)}</span>
+        <button class="task-delete" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/></svg>
+        </button>
+      `;
+      row.querySelector(".task-title-text").textContent = t.title;
+      row.querySelector(".task-checkbox").onclick = async (e) => {
+        e.stopPropagation();
+        const oldStatus = t.status;
+        t.status = t.status === "done" ? "todo" : "done";
+        renderClientDetail();
+        try { await dbUpsert("tasks", taskToDb(t)); }
+        catch (err) { t.status = oldStatus; showToastError(err.message); renderClientDetail(); }
+      };
+      row.querySelector(".task-delete").onclick = (e) => {
+        e.stopPropagation();
+        confirmAction("Delete this task?", async () => {
+          try {
+            await dbDelete("tasks", t.id);
+            state.tasks = state.tasks.filter(x => x.id !== t.id);
+            renderClientDetail();
+          } catch (err) { showToastError(err.message); }
+        });
+      };
+      row.querySelector(".task-title-text").onclick = () => openTaskModal(t.id);
+      taskList.appendChild(row);
+    });
+  }
+
+  // Quick add
+  const quickAdd = async () => {
+    const title = document.getElementById("quick-task-title").value.trim();
+    const due = document.getElementById("quick-task-due").value;
+    if (!title) return;
+    const newTask = { id: uid(), title, description: "", status: "todo", clientId: c.id, dueDate: due || "" };
+    try {
+      const saved = dbToTask(await dbUpsert("tasks", taskToDb(newTask)));
+      state.tasks.push(saved);
+      document.getElementById("quick-task-title").value = "";
+      document.getElementById("quick-task-due").value = "";
+      renderClientDetail();
+    } catch (err) { showToastError(err.message); }
+  };
+  document.getElementById("quick-task-add").onclick = quickAdd;
+  document.getElementById("quick-task-title").addEventListener("keydown", e => {
+    if (e.key === "Enter") quickAdd();
+  });
+}
+
+function statusLabel(s) {
+  return { todo: "To Do", "in-progress": "In Progress", done: "Done" }[s] || s;
+}
+
+document.getElementById("new-client-btn").onclick = () => openClientModal(null);
+document.getElementById("client-search").addEventListener("input", () => renderClients());
+
+function openClientModal(id) {
+  const isEdit = Boolean(id);
+  const c = isEdit ? state.clients.find(x => x.id === id) : { id: uid(), name: "", email: "", phone: "", address: "", lat: null, lng: null, geocodedAddress: "", notes: "" };
+
+  showModal({
+    title: isEdit ? "Edit Client" : "New Client",
+    body: `
+      <div class="form-group">
+        <label>Name *</label>
+        <input type="text" id="f-cname" value="${escapeAttr(c.name)}" placeholder="Full name" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="f-cemail" value="${escapeAttr(c.email || "")}" placeholder="name@example.com" />
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" id="f-cphone" value="${escapeAttr(c.phone || "")}" placeholder="(555) 555-5555" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Address</label>
+        <div class="geocode-row">
+          <textarea id="f-caddress" placeholder="Street, city, state, zip" style="min-height:50px;">${escapeHtml(c.address || "")}</textarea>
+          <button type="button" class="btn" id="f-geocode-btn">📍 Locate</button>
+        </div>
+        <div class="map-status" id="f-geocode-status">${c.lat != null ? `✓ Located (${c.lat.toFixed(4)}, ${c.lng.toFixed(4)})` : ""}</div>
+        <div class="geocode-hint">Click Locate to find this address on the map. Address will also be auto-located when you save.</div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="f-cnotes" placeholder="Anything important to remember">${escapeHtml(c.notes || "")}</textarea>
+      </div>
+    `,
+    footer: [
+      { label: "Cancel", className: "btn", onClick: closeModal },
+      { label: isEdit ? "Save" : "Create", className: "btn btn-primary", onClick: async (e) => {
+        const name = document.getElementById("f-cname").value.trim();
+        if (!name) { alert("Name is required"); return; }
+        const newAddress = document.getElementById("f-caddress").value.trim();
+        const updated = {
+          ...c,
+          name,
+          email: document.getElementById("f-cemail").value.trim(),
+          phone: document.getElementById("f-cphone").value.trim(),
+          address: newAddress,
+          lat: c.lat ?? null,
+          lng: c.lng ?? null,
+          geocodedAddress: c.geocodedAddress || "",
+          notes: document.getElementById("f-cnotes").value,
+        };
+        // Auto-geocode if address changed and we don't have coords matching it
+        if (newAddress && newAddress !== updated.geocodedAddress) {
+          const btn = e.target;
+          const orig = btn.textContent;
+          btn.textContent = "Locating...";
+          btn.disabled = true;
+          try {
+            const result = await geocodeAddress(newAddress);
+            if (result) {
+              updated.lat = result.lat;
+              updated.lng = result.lng;
+              updated.geocodedAddress = newAddress;
+            }
+          } catch (err) { /* keep old coords or none */ }
+          btn.disabled = false;
+          btn.textContent = orig;
+        } else if (!newAddress) {
+          updated.lat = null;
+          updated.lng = null;
+          updated.geocodedAddress = "";
+        }
+        try {
+          const saved = dbToClient(await dbUpsert("clients", clientToDb(updated)));
+          if (isEdit) {
+            const idx = state.clients.findIndex(x => x.id === c.id);
+            state.clients[idx] = saved;
+          } else {
+            state.clients.push(saved);
+            selectedClientId = saved.id;
+          }
+          closeModal();
+          renderClients();
+        } catch (err) {
+          showToastError(err.message);
+          e.target.disabled = false;
+          e.target.textContent = isEdit ? "Save" : "Create";
+        }
+      }},
+    ],
+  });
+  setTimeout(() => {
+    document.getElementById("f-cname").focus();
+    // Wire up the Locate button
+    const locateBtn = document.getElementById("f-geocode-btn");
+    const statusEl = document.getElementById("f-geocode-status");
+    locateBtn.onclick = async () => {
+      const addr = document.getElementById("f-caddress").value.trim();
+      if (!addr) {
+        statusEl.textContent = "Enter an address first.";
+        statusEl.className = "map-status error";
+        return;
+      }
+      locateBtn.disabled = true;
+      locateBtn.textContent = "Locating...";
+      statusEl.className = "map-status";
+      statusEl.textContent = "Looking up address...";
+      try {
+        const result = await geocodeAddress(addr);
+        if (result) {
+          c.lat = result.lat;
+          c.lng = result.lng;
+          c.geocodedAddress = addr;
+          statusEl.textContent = `✓ Found: ${result.displayName}`;
+        } else {
+          statusEl.textContent = "Couldn't find that address. Try being more specific.";
+          statusEl.className = "map-status error";
+        }
+      } catch (err) {
+        statusEl.textContent = "Lookup failed (check your internet connection).";
+        statusEl.className = "map-status error";
+      }
+      locateBtn.disabled = false;
+      locateBtn.textContent = "📍 Locate";
+    };
+  }, 30);
+}
+
+/* -------------------- GEOCODING -------------------- */
+
+async function geocodeAddress(address) {
+  // Uses OpenStreetMap's Nominatim service (free, no API key).
+  // Note: respects ~1 req/sec limit; fine for interactive use.
+  const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(address);
+  const res = await fetch(url, {
+    headers: { "Accept": "application/json" },
+  });
+  if (!res.ok) throw new Error("Geocoding request failed");
+  const data = await res.json();
+  if (!data || data.length === 0) return null;
+  return {
+    lat: parseFloat(data[0].lat),
+    lng: parseFloat(data[0].lon),
+    displayName: data[0].display_name,
+  };
+}
+
+const _mapInstances = {};
+function renderMiniMap(elementId, lat, lng, label) {
+  if (typeof L === "undefined") return;
+  // Tear down old map if any
+  if (_mapInstances[elementId]) {
+    _mapInstances[elementId].remove();
+    delete _mapInstances[elementId];
+  }
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const map = L.map(el, { zoomControl: true, scrollWheelZoom: false }).setView([lat, lng], 15);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors",
+    maxZoom: 19,
+  }).addTo(map);
+  L.marker([lat, lng]).addTo(map).bindPopup(label || "").openPopup();
+  _mapInstances[elementId] = map;
+  // Recalculate size after rendering (Leaflet quirk)
+  setTimeout(() => map.invalidateSize(), 50);
+}
+
+/* -------------------- APPOINTMENTS -------------------- */
+
+function openAppointmentModal(id, defaultClientId = null, defaultDate = "") {
+  const isEdit = Boolean(id);
+  const a = isEdit
+    ? state.appointments.find(x => x.id === id)
+    : { id: uid(), clientId: defaultClientId || (state.clients[0] ? state.clients[0].id : ""), date: defaultDate || todayISO(), time: "", notes: "" };
+
+  if (state.clients.length === 0) {
+    showModal({
+      title: "No clients yet",
+      body: `<p class="confirm-text">You need to add a client first before scheduling an appointment.</p>`,
+      footer: [
+        { label: "Close", className: "btn", onClick: closeModal },
+        { label: "Add a client", className: "btn btn-primary", onClick: () => { closeModal(); switchView("clients"); openClientModal(null); }},
+      ],
+    });
+    return;
+  }
+
+  const clientOptions = state.clients
+    .map(c => `<option value="${c.id}" ${c.id === a.clientId ? "selected" : ""}>${escapeHtml(c.name)}</option>`)
+    .join("");
+
+  showModal({
+    title: isEdit ? "Edit Appointment" : "New Appointment",
+    body: `
+      <div class="form-group">
+        <label>Client</label>
+        <select id="f-aclient">${clientOptions}</select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="f-adate" value="${a.date}" />
+        </div>
+        <div class="form-group">
+          <label>Time</label>
+          <input type="time" id="f-atime" value="${a.time || ""}" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="f-anotes" placeholder="Anything about this meeting">${escapeHtml(a.notes || "")}</textarea>
+      </div>
+    `,
+    footer: [
+      isEdit ? { label: "Delete", className: "btn btn-danger", onClick: () => {
+        confirmAction("Delete this appointment?", async () => {
+          try {
+            await dbDelete("appointments", a.id);
+            state.appointments = state.appointments.filter(x => x.id !== a.id);
+            closeModal();
+            rerender();
+          } catch (err) { showToastError(err.message); }
+        });
+      }} : null,
+      { label: "Cancel", className: "btn", onClick: closeModal },
+      { label: isEdit ? "Save" : "Create", className: "btn btn-primary", onClick: async (ev) => {
+        const updated = {
+          ...a,
+          clientId: document.getElementById("f-aclient").value,
+          date: document.getElementById("f-adate").value,
+          time: document.getElementById("f-atime").value,
+          notes: document.getElementById("f-anotes").value.trim(),
+        };
+        if (!updated.date) { alert("Date is required"); return; }
+        const btn = ev.target; btn.disabled = true; btn.textContent = "Saving...";
+        try {
+          const saved = dbToAppt(await dbUpsert("appointments", apptToDb(updated)));
+          if (isEdit) {
+            const idx = state.appointments.findIndex(x => x.id === a.id);
+            state.appointments[idx] = saved;
+          } else { state.appointments.push(saved); }
+          closeModal(); rerender();
+        } catch (err) {
+          showToastError(err.message);
+          btn.disabled = false; btn.textContent = isEdit ? "Save" : "Create";
+        }
+      }},
+    ].filter(Boolean),
+  });
+}
+
+/* -------------------- ESTIMATES -------------------- */
+
+function estimateTotal(e) {
+  if (!e || !e.lineItems) return 0;
+  return e.lineItems.reduce((sum, li) => sum + (Number(li.qty) || 0) * (Number(li.price) || 0), 0);
+}
+
+function formatMoney(n) {
+  return "$" + (Number(n) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function statusLabelEstimate(s) {
+  return { draft: "Draft", sent: "Sent", accepted: "Accepted", declined: "Declined" }[s] || "Draft";
+}
+
+let _estimateDraft = null; // working copy in modal
+
+function openEstimateModal(id, defaultClientId = null) {
+  const isEdit = Boolean(id);
+  const e = isEdit
+    ? structuredClone(state.estimates.find(x => x.id === id))
+    : { id: uid(), clientId: defaultClientId, title: "", date: todayISO(), status: "draft", notes: "", lineItems: [{ description: "", qty: 1, price: 0 }] };
+
+  _estimateDraft = e;
+
+  if (state.clients.length === 0) {
+    showModal({
+      title: "No clients yet",
+      body: `<p class="confirm-text">You need to add a client first before creating an estimate.</p>`,
+      footer: [
+        { label: "Close", className: "btn", onClick: closeModal },
+        { label: "Add a client", className: "btn btn-primary", onClick: () => { closeModal(); switchView("clients"); openClientModal(null); }},
+      ],
+    });
+    return;
+  }
+
+  const clientOptions = state.clients
+    .map(c => `<option value="${c.id}" ${c.id === e.clientId ? "selected" : ""}>${escapeHtml(c.name)}</option>`)
+    .join("");
+
+  showModal({
+    title: isEdit ? "Edit Estimate" : "New Estimate",
+    body: `
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="f-etitle" value="${escapeAttr(e.title)}" placeholder="What's this estimate for?" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Client</label>
+          <select id="f-eclient">${clientOptions}</select>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="f-edate" value="${e.date || ""}" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="f-estatus">
+          <option value="draft" ${e.status === "draft" ? "selected" : ""}>Draft</option>
+          <option value="sent" ${e.status === "sent" ? "selected" : ""}>Sent</option>
+          <option value="accepted" ${e.status === "accepted" ? "selected" : ""}>Accepted</option>
+          <option value="declined" ${e.status === "declined" ? "selected" : ""}>Declined</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Line items</label>
+        <div class="line-items">
+          <div class="line-item-header">
+            <div>Description</div>
+            <div style="text-align:right;">Qty</div>
+            <div style="text-align:right;">Price</div>
+            <div></div>
+          </div>
+          <div id="line-items-body"></div>
+          <div class="line-items-footer">
+            <button type="button" class="add-line-btn" id="add-line-btn">+ Add line</button>
+            <div>Total: <strong id="line-total">$0.00</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="f-enotes" placeholder="Terms, scope details, etc.">${escapeHtml(e.notes || "")}</textarea>
+      </div>
+    `,
+    footer: [
+      isEdit ? { label: "Delete", className: "btn btn-danger", onClick: () => {
+        confirmAction("Delete this estimate?", async () => {
+          try {
+            await dbDelete("estimates", e.id);
+            state.estimates = state.estimates.filter(x => x.id !== e.id);
+            closeModal(); renderClientDetail();
+          } catch (err) { showToastError(err.message); }
+        });
+      }} : null,
+      { label: "Cancel", className: "btn", onClick: closeModal },
+      { label: isEdit ? "Save" : "Create", className: "btn btn-primary", onClick: async (ev) => {
+        const title = document.getElementById("f-etitle").value.trim();
+        if (!title) { alert("Title is required"); return; }
+        const btn = ev.target; btn.disabled = true; btn.textContent = "Saving...";
+        const updated = {
+          ...e, title,
+          clientId: document.getElementById("f-eclient").value,
+          date: document.getElementById("f-edate").value || todayISO(),
+          status: document.getElementById("f-estatus").value,
+          notes: document.getElementById("f-enotes").value.trim(),
+          lineItems: _estimateDraft.lineItems.filter(li => li.description || li.qty || li.price),
+        };
+        try {
+          const saved = dbToEstimate(await dbUpsert("estimates", estimateToDb(updated)));
+          if (isEdit) {
+            const idx = state.estimates.findIndex(x => x.id === e.id);
+            state.estimates[idx] = saved;
+          } else { state.estimates.push(saved); }
+          closeModal(); renderClientDetail();
+        } catch (err) {
+          showToastError(err.message);
+          btn.disabled = false; btn.textContent = isEdit ? "Save" : "Create";
+        }
+      }},
+    ].filter(Boolean),
+  });
+
+  renderLineItems();
+  setTimeout(() => document.getElementById("f-etitle").focus(), 30);
+
+  document.getElementById("add-line-btn").onclick = () => {
+    _estimateDraft.lineItems.push({ description: "", qty: 1, price: 0 });
+    renderLineItems();
+  };
+}
+
+function renderLineItems() {
+  const body = document.getElementById("line-items-body");
+  if (!body) return;
+  body.innerHTML = "";
+  _estimateDraft.lineItems.forEach((li, idx) => {
+    const row = document.createElement("div");
+    row.className = "line-item-row";
+    row.innerHTML = `
+      <input type="text" placeholder="Item description" value="${escapeAttr(li.description)}" data-field="description" />
+      <input type="number" min="0" step="0.01" value="${li.qty}" data-field="qty" />
+      <input type="number" min="0" step="0.01" value="${li.price}" data-field="price" />
+      <button type="button" class="line-item-remove" title="Remove line">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    `;
+    row.querySelectorAll("input").forEach(input => {
+      input.addEventListener("input", () => {
+        const field = input.dataset.field;
+        if (field === "description") li[field] = input.value;
+        else li[field] = parseFloat(input.value) || 0;
+        updateLineTotal();
+      });
+    });
+    row.querySelector(".line-item-remove").onclick = () => {
+      _estimateDraft.lineItems.splice(idx, 1);
+      if (_estimateDraft.lineItems.length === 0) {
+        _estimateDraft.lineItems.push({ description: "", qty: 1, price: 0 });
+      }
+      renderLineItems();
+    };
+    body.appendChild(row);
+  });
+  updateLineTotal();
+}
+
+function updateLineTotal() {
+  const totalEl = document.getElementById("line-total");
+  if (totalEl) totalEl.textContent = formatMoney(estimateTotal(_estimateDraft));
+}
+
+/* -------------------- CALENDAR -------------------- */
+
+function renderCalendar() {
+  const grid = document.getElementById("calendar-grid");
+  grid.innerHTML = "";
+
+  const year = calCursor.getFullYear();
+  const month = calCursor.getMonth();
+  document.getElementById("cal-month-label").textContent =
+    calCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach(d => {
+    const el = document.createElement("div");
+    el.className = "cal-weekday";
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const firstOfMonth = new Date(year, month, 1);
+  const startDayOfWeek = firstOfMonth.getDay();
+  const startDate = new Date(year, month, 1 - startDayOfWeek);
+
+  const today = todayISO();
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const otherMonth = d.getMonth() !== month;
+
+    const cell = document.createElement("div");
+    cell.className = "cal-day" + (otherMonth ? " other-month" : "") + (iso === today ? " today" : "");
+    cell.dataset.date = iso;
+
+    const num = document.createElement("div");
+    num.className = "cal-day-num";
+    num.textContent = d.getDate();
+    cell.appendChild(num);
+
+    // Appointments on that day
+    const appts = state.appointments.filter(a => a.date === iso);
+    appts.forEach(a => {
+      const client = state.clients.find(c => c.id === a.clientId);
+      const ev = document.createElement("div");
+      ev.className = "cal-event";
+      ev.textContent = (a.time ? a.time + " " : "") + (client ? client.name : "Appointment");
+      ev.title = (client ? client.name : "Appointment") + (a.notes ? " — " + a.notes : "");
+      ev.onclick = (e) => { e.stopPropagation(); openAppointmentModal(a.id); };
+      cell.appendChild(ev);
+    });
+
+    // Tasks due that day
+    const dueTasks = state.tasks.filter(t => t.dueDate === iso);
+    dueTasks.forEach(t => {
+      const ev = document.createElement("div");
+      ev.className = "cal-event task" + (t.status === "done" ? " done" : "");
+      ev.textContent = "✓ " + t.title;
+      ev.title = "Task: " + t.title;
+      ev.onclick = (e) => { e.stopPropagation(); openTaskModal(t.id); };
+      cell.appendChild(ev);
+    });
+
+    cell.addEventListener("click", () => openAppointmentModal(null, null, iso));
+    grid.appendChild(cell);
+  }
+}
+
+document.getElementById("cal-prev").onclick = () => {
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
+  renderCalendar();
+};
+document.getElementById("cal-next").onclick = () => {
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
+  renderCalendar();
+};
+document.getElementById("cal-today").onclick = () => {
+  calCursor = new Date();
+  renderCalendar();
+};
+
+/* -------------------- MODAL -------------------- */
+
+function showModal({ title, body, footer }) {
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-body").innerHTML = body;
+  const footEl = document.getElementById("modal-footer");
+  footEl.innerHTML = "";
+  footer.forEach(f => {
+    const b = document.createElement("button");
+    b.className = f.className;
+    b.textContent = f.label;
+    b.onclick = f.onClick;
+    footEl.appendChild(b);
+  });
+  document.getElementById("modal-overlay").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("modal-overlay").classList.remove("open");
+}
+
+document.getElementById("modal-close").onclick = closeModal;
+document.getElementById("modal-overlay").addEventListener("click", e => {
+  if (e.target.id === "modal-overlay") closeModal();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeModal();
+});
+
+function confirmAction(message, onYes) {
+  showModal({
+    title: "Are you sure?",
+    body: `<p class="confirm-text">${escapeHtml(message)}</p>`,
+    footer: [
+      { label: "Cancel", className: "btn", onClick: closeModal },
+      { label: "Yes, do it", className: "btn btn-danger", onClick: () => { onYes(); } },
+    ],
+  });
+}
+
+/* -------------------- Utils -------------------- */
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+function rerender() {
+  if (currentView === "board") renderBoard();
+  if (currentView === "clients") renderClients();
+  if (currentView === "calendar") renderCalendar();
+}
+
+/* -------------------- AUTH & BOOT -------------------- */
+
+function isConfigured() {
+  return SUPABASE_URL && SUPABASE_ANON_KEY
+    && !SUPABASE_URL.includes("PASTE_YOUR")
+    && !SUPABASE_ANON_KEY.includes("PASTE_YOUR");
+}
+
+function showConfigWarning() {
+  const wrap = document.getElementById("config-warning-wrap");
+  wrap.innerHTML = `<div class="config-warning"><strong>Setup required.</strong> Open <code>organizer-cloud.html</code> in a text editor and paste your <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> near the top of the script section. See <code>SETUP.md</code>.</div>`;
+  document.getElementById("auth-form").style.display = "none";
+  document.querySelector(".auth-tabs").style.display = "none";
+}
+
+let authMode = "signin";
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.querySelectorAll(".auth-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === mode));
+  document.getElementById("auth-submit").textContent = mode === "signin" ? "Sign in" : "Create account";
+  document.getElementById("auth-password").autocomplete = mode === "signin" ? "current-password" : "new-password";
+  document.getElementById("auth-error").classList.remove("show");
+  document.getElementById("auth-success").classList.remove("show");
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg; el.classList.add("show");
+}
+function showAuthSuccess(msg) {
+  const el = document.getElementById("auth-success");
+  el.textContent = msg; el.classList.add("show");
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById("auth-email").value.trim();
+  const password = document.getElementById("auth-password").value;
+  const submitBtn = document.getElementById("auth-submit");
+  document.getElementById("auth-error").classList.remove("show");
+  document.getElementById("auth-success").classList.remove("show");
+  submitBtn.disabled = true;
+  submitBtn.textContent = authMode === "signin" ? "Signing in..." : "Creating account...";
+  try {
+    if (authMode === "signin") {
+      const { data, error } = await supaClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      onAuthSuccess(data.user);
+    } else {
+      const { data, error } = await supaClient.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.session) {
+        onAuthSuccess(data.user);
+      } else {
+        showAuthSuccess("Account created! Check your email to confirm, then sign in.");
+        setAuthMode("signin");
+      }
+    }
+  } catch (err) {
+    showAuthError(err.message || "Something went wrong");
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = authMode === "signin" ? "Sign in" : "Create account";
+  }
+}
+
+async function onAuthSuccess(user) {
+  currentUser = user;
+  document.getElementById("auth-shell").classList.add("hidden");
+  document.getElementById("loading-shell").classList.remove("hidden");
+  try {
+    await loadAllData();
+    document.getElementById("user-email").textContent = user.email;
+    document.getElementById("user-avatar").textContent = (user.email || "?")[0].toUpperCase();
+    document.getElementById("loading-shell").classList.add("hidden");
+    document.getElementById("main-app").style.display = "grid";
+    renderTopbarActions();
+    renderBoard();
+  } catch (err) {
+    document.getElementById("loading-shell").classList.add("hidden");
+    document.getElementById("auth-shell").classList.remove("hidden");
+    showAuthError("Couldn't load your data: " + err.message);
+  }
+}
+
+async function handleSignOut() {
+  await supaClient.auth.signOut();
+  currentUser = null;
+  state = { clients: [], tasks: [], appointments: [], estimates: [] };
+  selectedClientId = null;
+  document.getElementById("main-app").style.display = "none";
+  document.getElementById("auth-shell").classList.remove("hidden");
+  document.getElementById("auth-email").value = "";
+  document.getElementById("auth-password").value = "";
+  setAuthMode("signin");
+}
+
+// Wire up auth UI
+document.getElementById("auth-form").addEventListener("submit", handleAuthSubmit);
+document.getElementById("signout-btn").addEventListener("click", handleSignOut);
+
+async function init() {
+  if (!isConfigured()) { showConfigWarning(); return; }
+  try {
+    supaClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (err) {
+    showConfigWarning();
+    return;
+  }
+  const { data: { session } } = await supaClient.auth.getSession();
+  if (session && session.user) {
+    onAuthSuccess(session.user);
+  }
+}
+init();
+</script>
+
+</body>
+</html>
