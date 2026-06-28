@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Org Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; }
+  body { margin: 0; background: #ECEEE9; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  @keyframes flow { 0% { background-position: 0% 50% } 100% { background-position: 200% 50% } }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #cfd3cb; border-radius: 9px; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid #1F6F5C; outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) { .of-flowline { animation: none !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React + Babel (cdnjs) so the UI renders anywhere -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* =========================================================================
+   1. CONFIG  —  fill these in with your Supabase project values
+   ========================================================================= */
+const SUPABASE_URL = "https://kytzmgvlxsaefhjapdow.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_RO-FyetmwciUjsIfM4r_WA_8LG6PX7_";
+// Usernames are mapped to an internal address. You never type an email.
+const ACCOUNT_DOMAIN = "orgflow.local";
+
+const sb = (window.supabase && SUPABASE_URL.indexOf("Orgflow") === -1)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+/* =========================================================================
+   2. Tokens + constants
+   ========================================================================= */
+const T = {
+  canvas: "#ECEEE9", panel: "#FFFFFF", panelAlt: "#F6F7F4",
+  ink: "#14181A", inkSoft: "#5B6360", line: "#E0E3DD",
+  accent: "#1F6F5C", accentSoft: "#E3F0EC", amber: "#C8702A", green: "#3E7D4F", red: "#B23A36",
+};
+const COLUMNS = [
+  { id: "todo", name: "To Do", dot: T.inkSoft, empty: "Nothing queued. Add a task to get the flow going." },
+  { id: "doing", name: "In Progress", dot: T.amber, empty: "Pull a task here when you start on it." },
+  { id: "done", name: "Done", dot: T.green, empty: "Finished work lands here." },
+];
+const PRI = {
+  low: { label: "Low", bars: 1, color: "#8A9A93" },
+  med: { label: "Medium", bars: 2, color: T.amber },
+  high: { label: "High", bars: 3, color: T.red },
+};
+const PRI_ORDER = { high: 0, med: 1, low: 2 };
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const PILL = {
+  todo: { bg: "#EEF0EC", fg: T.ink },
+  doing: { bg: "#F6E9DC", fg: "#9A531C" },
+  done: { bg: "#E4EFE5", fg: T.green },
+};
+
+const toKey = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayStr = () => toKey(new Date());
+const fmtDue = (s) => {
+  if (!s) return "";
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+
+/* =========================================================================
+   3. Inline icons (no icon library dependency)
+   ========================================================================= */
+function Ic({ name, size = 16, style }) {
+  const C = {
+    plus: <g><path d="M5 12h14" /><path d="M12 5v14" /></g>,
+    search: <g><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.3-4.3" /></g>,
+    edit: <g><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></g>,
+    trash: <g><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></g>,
+    x: <g><path d="M18 6 6 18" /><path d="M6 6l12 12" /></g>,
+    calendar: <g><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></g>,
+    tag: <g><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z" /><circle cx="7" cy="7" r="1" /></g>,
+    check: <path d="M20 6 9 17l-5-5" />,
+    left: <path d="M15 18l-6-6 6-6" />,
+    right: <path d="M9 18l6-6-6-6" />,
+    grid: <g><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></g>,
+    days: <g><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /></g>,
+    logout: <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></g>,
+    user: <g><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></g>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      {C[name]}
+    </svg>
+  );
+}
+
+/* =========================================================================
+   4. Auth screen (username + password)
+   ========================================================================= */
+function accountEmail(username) { return `${username.trim().toLowerCase()}@${ACCOUNT_DOMAIN}`; }
+const USERNAME_RE = /^[a-z0-9._-]{3,}$/;
+
+function Auth() {
+  const [mode, setMode] = useState("in"); // "in" | "up"
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async () => {
+    setErr("");
+    const u = username.trim().toLowerCase();
+    if (!USERNAME_RE.test(u)) { setErr("Use 3+ characters: letters, numbers, dot, dash, underscore."); return; }
+    if (password.length < 6) { setErr("Password needs at least 6 characters."); return; }
+    if (!sb) { setErr("Add your Supabase URL and key in the config to sign in."); return; }
+    setBusy(true);
+    try {
+      if (mode === "up") {
+        const { data, error } = await sb.auth.signUp({
+          email: accountEmail(u), password, options: { data: { username: u } },
+        });
+        if (error) throw error;
+        if (data.user) {
+          await sb.from("profiles").upsert({ id: data.user.id, username: u });
+        }
+        if (!data.session) {
+          setErr("Account made. Turn off email confirmation in Supabase, then sign in.");
+          setMode("in");
+        }
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email: accountEmail(u), password });
+        if (error) throw error;
+      }
+    } catch (e) {
+      const m = (e && e.message) || "";
+      if (/already registered/i.test(m)) setErr("That username is already taken.");
+      else if (/invalid login/i.test(m)) setErr("Wrong username or password.");
+      else setErr(m || "Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const field = { width: "100%", padding: "11px 13px", borderRadius: 10, border: `1px solid ${T.line}`, background: "#fff", fontSize: 15, color: T.ink, fontFamily: "inherit" };
+  const lbl = { fontSize: 12.5, fontWeight: 600, color: T.inkSoft, marginBottom: 6, display: "block" };
+
+  return (
+    <div style={{ minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: 22 }}>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 34, letterSpacing: "-0.02em", margin: 0 }}>Org Flow</h1>
+          <p style={{ color: T.inkSoft, fontSize: 14, margin: "6px 0 0" }}>Move work from idea to done.</p>
+          <div className="of-flowline" style={{ height: 3, marginTop: 14, borderRadius: 3, background: `linear-gradient(90deg, ${T.accent}, ${T.amber}, ${T.green}, ${T.accent})`, backgroundSize: "200% 100%", animation: "flow 6s linear infinite" }} />
+        </div>
+
+        <div style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 16, padding: 22 }}>
+          <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 19, fontWeight: 700, margin: "0 0 16px" }}>
+            {mode === "in" ? "Sign in" : "Create account"}
+          </h2>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+            <div>
+              <label style={lbl}>Username</label>
+              <input value={username} autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                onChange={(e) => setUsername(e.target.value)} placeholder="yourname" style={field} />
+            </div>
+            <div>
+              <label style={lbl}>Password</label>
+              <input type="password" value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+                placeholder="••••••••" style={field} />
+            </div>
+          </div>
+
+          {err && <p style={{ color: T.red, fontSize: 13, margin: "13px 0 0", lineHeight: 1.4 }}>{err}</p>}
+
+          <button onClick={submit} disabled={busy} style={{
+            width: "100%", marginTop: 18, padding: "12px", borderRadius: 11, border: "none",
+            background: T.accent, color: "#fff", fontSize: 15, fontWeight: 600,
+            cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1, fontFamily: "inherit",
+          }}>
+            {busy ? "Working…" : mode === "in" ? "Sign in" : "Create account"}
+          </button>
+
+          <p style={{ textAlign: "center", fontSize: 13.5, color: T.inkSoft, margin: "16px 0 0" }}>
+            {mode === "in" ? "New here? " : "Already have an account? "}
+            <button onClick={() => { setMode(mode === "in" ? "up" : "in"); setErr(""); }} style={{
+              border: "none", background: "transparent", color: T.accent, fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, padding: 0,
+            }}>{mode === "in" ? "Create one" : "Sign in"}</button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   5. Presentational pieces
+   ========================================================================= */
+function Signal({ priority }) {
+  const p = PRI[priority];
+  return (
+    <span title={`${p.label} priority`} style={{ display: "inline-flex", alignItems: "flex-end", gap: 2, height: 13 }}>
+      {[0, 1, 2].map((i) => (
+        <span key={i} style={{ width: 3, borderRadius: 1, height: 5 + i * 4, background: i < p.bars ? p.color : T.line }} />
+      ))}
+    </span>
+  );
+}
+
+function Chip({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontSize: 13,
+      fontFamily: "inherit", fontWeight: active ? 600 : 500,
+      border: `1px solid ${active ? T.accent : T.line}`,
+      background: active ? T.accentSoft : T.panel, color: active ? T.accent : T.inkSoft,
+    }}>{children}</button>
+  );
+}
+
+function IconBtn({ onClick, name, label, danger }) {
+  return (
+    <button onClick={onClick} aria-label={label} title={label} style={{
+      display: "inline-flex", padding: 6, borderRadius: 7, cursor: "pointer",
+      border: "none", background: "transparent", color: danger ? T.red : T.inkSoft,
+    }}><Ic name={name} size={14} /></button>
+  );
+}
+
+function Seg({ view, setView }) {
+  const opts = [["board", "Board", "grid"], ["calendar", "Calendar", "days"]];
+  return (
+    <div style={{ display: "inline-flex", background: T.panel, border: `1px solid ${T.line}`, borderRadius: 10, padding: 3, gap: 2 }}>
+      {opts.map(([id, label, icon]) => (
+        <button key={id} onClick={() => setView(id)} style={{
+          display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px",
+          borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+          background: view === id ? T.accentSoft : "transparent", color: view === id ? T.accent : T.inkSoft,
+        }}><Ic name={icon} size={15} /> {label}</button>
+      ))}
+    </div>
+  );
+}
+
+function Card({ task, onMove, onEdit, onDelete }) {
+  const overdue = task.due && task.due < todayStr() && task.status !== "done";
+  const moves = {
+    todo: [{ to: "doing", label: "Start →" }],
+    doing: [{ to: "todo", label: "← Back" }, { to: "done", label: "Done ✓" }],
+    done: [{ to: "doing", label: "← Reopen" }],
+  }[task.status];
+  return (
+    <div tabIndex={0} style={{ background: T.panel, border: `1px solid ${T.line}`, borderRadius: 11, padding: "11px 12px", boxShadow: "0 1px 2px rgba(20,24,26,0.04)" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <span style={{ marginTop: 2 }}><Signal priority={task.priority} /></span>
+        <p style={{ margin: 0, fontSize: 14.5, fontWeight: 500, lineHeight: 1.35, flex: 1, textDecoration: task.status === "done" ? "line-through" : "none", color: task.status === "done" ? T.inkSoft : T.ink }}>{task.title}</p>
+      </div>
+      {task.notes && <p style={{ margin: "7px 0 0", fontSize: 12.5, color: T.inkSoft, lineHeight: 1.4 }}>{task.notes}</p>}
+      {(task.tag || task.due) && (
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 9 }}>
+          {task.tag && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, color: T.inkSoft, background: T.panelAlt, padding: "2px 8px", borderRadius: 6 }}><Ic name="tag" size={11} /> {task.tag}</span>}
+          {task.due && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, color: overdue ? T.red : T.inkSoft, background: overdue ? "#F7E6E5" : T.panelAlt, padding: "2px 8px", borderRadius: 6, fontWeight: overdue ? 600 : 400 }}><Ic name="calendar" size={11} /> {fmtDue(task.due)}{overdue ? " · overdue" : ""}</span>}
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 11, paddingTop: 9, borderTop: `1px solid ${T.line}` }}>
+        {moves.map((mv) => (
+          <button key={mv.to} onClick={() => onMove(task.id, mv.to)} style={{ fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", border: `1px solid ${T.line}`, background: T.panel, color: T.accent, padding: "4px 10px", borderRadius: 8 }}>{mv.label}</button>
+        ))}
+        <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
+          <IconBtn onClick={onEdit} name="edit" label="Edit task" />
+          <IconBtn onClick={onDelete} name="trash" label="Delete task" danger />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Editor({ initial, existingTags, onCancel, onSave }) {
+  const isNew = !initial.id;
+  const [title, setTitle] = useState(initial.title || "");
+  const [notes, setNotes] = useState(initial.notes || "");
+  const [priority, setPriority] = useState(initial.priority || "med");
+  const [due, setDue] = useState(initial.due || "");
+  const [tag, setTag] = useState(initial.tag || "");
+  const titleRef = useRef(null);
+  useEffect(() => { titleRef.current && titleRef.current.focus(); }, []);
+
+  const submit = () => {
+    if (!title.trim()) { titleRef.current && titleRef.current.focus(); return; }
+    onSave({
+      id: initial.id, title: title.trim(), notes: notes.trim(), priority, due,
+      tag: tag.trim(), status: initial.status || "todo",
+    });
+  };
+  const field = { width: "100%", padding: "9px 11px", borderRadius: 9, border: `1px solid ${T.line}`, background: "#fff", fontSize: 14, color: T.ink, fontFamily: "inherit" };
+  const lbl = { fontSize: 12, fontWeight: 600, color: T.inkSoft, marginBottom: 5, display: "block" };
+
+  return (
+    <div onClick={onCancel} style={{ position: "fixed", inset: 0, background: "rgba(20,24,26,0.34)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "max(8vh, 24px) 16px 24px", zIndex: 50 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 440, background: T.panel, borderRadius: 16, padding: 20, boxShadow: "0 18px 50px rgba(20,24,26,0.22)" }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 19, fontWeight: 700 }}>{isNew ? "Add task" : "Edit task"}</h3>
+          <IconBtn onClick={onCancel} name="x" label="Close" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+          <div>
+            <label style={lbl}>Title</label>
+            <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder="What needs doing?" style={field} />
+          </div>
+          <div>
+            <label style={lbl}>Notes <span style={{ fontWeight: 400 }}>(optional)</span></label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Any detail worth keeping" style={{ ...field, resize: "vertical" }} />
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={lbl}>Priority</label>
+              <select value={priority} onChange={(e) => setPriority(e.target.value)} style={field}>
+                <option value="low">Low</option><option value="med">Medium</option><option value="high">High</option>
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={lbl}>Due date</label>
+              <input type="date" value={due} onChange={(e) => setDue(e.target.value)} style={field} />
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Tag</label>
+            <input value={tag} onChange={(e) => setTag(e.target.value)} list="of-tags" placeholder="e.g. Study, Project" style={field} />
+            <datalist id="of-tags">{existingTags.map((t) => <option key={t} value={t} />)}</datalist>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 9, marginTop: 20, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ padding: "9px 16px", borderRadius: 10, border: `1px solid ${T.line}`, background: "#fff", color: T.ink, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={submit} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}><Ic name="check" size={16} /> {isNew ? "Add task" : "Save task"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const navBtn = { display: "inline-flex", padding: 7, borderRadius: 9, border: `1px solid ${T.line}`, background: "#fff", color: T.ink, cursor: "pointer" };
+const navText = { padding: "7px 13px", borderRadius: 9, border: `1px solid ${T.line}`, background: "#fff", color: T.ink, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
+
+function CalendarView({ tasks, cursor, setCursor, onAddOn, onEdit }) {
+  const y = cursor.getFullYear(), m = cursor.getMonth();
+  const offset = new Date(y, m, 1).getDay();
+  const dim = new Date(y, m + 1, 0).getDate();
+  const rows = Math.ceil((offset + dim) / 7);
+  const start = new Date(y, m, 1 - offset);
+  const cells = Array.from({ length: rows * 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+  const today = todayStr();
+  const byDate = {};
+  tasks.forEach((t) => { if (t.due) (byDate[t.due] = byDate[t.due] || []).push(t); });
+  const undated = tasks.filter((t) => !t.due).length;
+  const step = (n) => setCursor(new Date(y, m + n, 1));
+  const goToday = () => { const d = new Date(); setCursor(new Date(d.getFullYear(), d.getMonth(), 1)); };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 21, fontWeight: 700, margin: 0 }}>
+          {cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+        </h2>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+          <button onClick={goToday} style={navText}>Today</button>
+          <button aria-label="Previous month" onClick={() => step(-1)} style={navBtn}><Ic name="left" size={18} /></button>
+          <button aria-label="Next month" onClick={() => step(1)} style={navBtn}><Ic name="right" size={18} /></button>
+        </div>
+      </div>
+      <div style={{ overflowX: "auto", border: `1px solid ${T.line}`, borderRadius: 14, background: T.panel }}>
+        <div style={{ minWidth: 660 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: `1px solid ${T.line}` }}>
+            {WEEKDAYS.map((w) => <div key={w} style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600, color: T.inkSoft, letterSpacing: "0.04em", textTransform: "uppercase" }}>{w}</div>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+            {cells.map((d, i) => {
+              const key = toKey(d);
+              const inMonth = d.getMonth() === m;
+              const isToday = key === today;
+              const dayTasks = (byDate[key] || []).sort((a, b) => PRI_ORDER[a.priority] - PRI_ORDER[b.priority]);
+              const shown = dayTasks.slice(0, 3);
+              const extra = dayTasks.length - shown.length;
+              return (
+                <div key={i} style={{ minHeight: 98, padding: 7, borderRight: (i % 7 !== 6) ? `1px solid ${T.line}` : "none", borderBottom: i < cells.length - 7 ? `1px solid ${T.line}` : "none", background: inMonth ? T.panel : "#FAFBF9" }}>
+                  <div style={{ display: "flex", alignItems: "center", marginBottom: 5 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 21, height: 21, borderRadius: "50%", fontSize: 12, fontWeight: isToday ? 700 : 500, background: isToday ? T.accent : "transparent", color: isToday ? "#fff" : inMonth ? T.ink : "#AEB4AD", fontFamily: "'Spline Sans Mono', monospace" }}>{d.getDate()}</span>
+                    <button aria-label="Add task on this day" onClick={() => onAddOn(key)} style={{ marginLeft: "auto", display: "inline-flex", padding: 3, borderRadius: 6, border: "none", background: "transparent", color: T.inkSoft, cursor: "pointer" }}><Ic name="plus" size={14} /></button>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {shown.map((t) => {
+                      const c = PILL[t.status];
+                      return (
+                        <button key={t.id} onClick={() => onEdit(t)} title={t.title} style={{ display: "flex", alignItems: "center", gap: 4, textAlign: "left", width: "100%", padding: "3px 6px", borderRadius: 5, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 500, background: c.bg, color: c.fg }}>
+                          <span style={{ width: 4, height: 4, borderRadius: "50%", background: PRI[t.priority].color, flexShrink: 0 }} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: t.status === "done" ? "line-through" : "none" }}>{t.title}</span>
+                        </button>
+                      );
+                    })}
+                    {extra > 0 && <button onClick={() => onEdit(dayTasks[3])} style={{ border: "none", background: "transparent", color: T.inkSoft, cursor: "pointer", fontSize: 10.5, fontFamily: "inherit", textAlign: "left", padding: "1px 6px" }}>+{extra} more</button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {undated > 0 && <p style={{ fontSize: 12.5, color: T.inkSoft, marginTop: 12 }}>{undated} task{undated > 1 ? "s" : ""} with no due date {undated > 1 ? "live" : "lives"} on the board.</p>}
+    </div>
+  );
+}
+
+/* =========================================================================
+   6. Workspace (the board, backed by Supabase)
+   ========================================================================= */
+const fromRow = (r) => ({ id: r.id, title: r.title, notes: r.notes || "", priority: r.priority || "med", due: r.due || "", tag: r.tag || "", status: r.status || "todo", created: r.created_at ? Date.parse(r.created_at) : Date.now() });
+const toRow = (t, uid) => ({ user_id: uid, title: t.title, notes: t.notes, priority: t.priority, due: t.due || null, tag: t.tag, status: t.status });
+
+function Workspace({ session, onSignOut }) {
+  const uid = session.user.id;
+  const name = (session.user.user_metadata && session.user.user_metadata.username) || (session.user.email || "").split("@")[0];
+
+  const [tasks, setTasks] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [query, setQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [view, setView] = useState("board");
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await sb.from("tasks").select("*").order("created_at", { ascending: true });
+        if (!error && data) setTasks(data.map(fromRow));
+      } catch (e) { /* offline / not configured */ }
+      finally { setLoaded(true); }
+    })();
+  }, [uid]);
+
+  const tags = useMemo(() => [...new Set(tasks.map((t) => t.tag).filter(Boolean))].sort(), [tasks]);
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return tasks.filter((t) => {
+      if (tagFilter && t.tag !== tagFilter) return false;
+      if (q && !(`${t.title} ${t.notes} ${t.tag}`.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [tasks, query, tagFilter]);
+
+  const byCol = (id) => visible.filter((t) => t.status === id).sort((a, b) => {
+    const p = PRI_ORDER[a.priority] - PRI_ORDER[b.priority];
+    if (p) return p;
+    if (a.due && b.due) return a.due.localeCompare(b.due);
+    if (a.due) return -1; if (b.due) return 1;
+    return a.created - b.created;
+  });
+  const counts = COLUMNS.map((c) => tasks.filter((t) => t.status === c.id).length);
+
+  const move = async (id, status) => {
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, status } : t)));
+    await sb.from("tasks").update({ status }).eq("id", id);
+  };
+  const remove = async (id) => {
+    setTasks((ts) => ts.filter((t) => t.id !== id));
+    await sb.from("tasks").delete().eq("id", id);
+  };
+  const save = async (task) => {
+    if (task.id) {
+      setTasks((ts) => ts.map((t) => (t.id === task.id ? { ...t, ...task } : t)));
+      setEditing(null);
+      await sb.from("tasks").update(toRow(task, uid)).eq("id", task.id);
+    } else {
+      setEditing(null);
+      const { data, error } = await sb.from("tasks").insert(toRow(task, uid)).select().single();
+      if (!error && data) setTasks((ts) => [...ts, fromRow(data)]);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100%", background: T.canvas, color: T.ink }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "28px 20px 64px" }}>
+        <header style={{ marginBottom: 22 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700, fontSize: 34, letterSpacing: "-0.02em", margin: 0, lineHeight: 1 }}>Org Flow</h1>
+            <span style={{ fontSize: 14, color: T.inkSoft }}>Move work from idea to done.</span>
+            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: T.inkSoft, fontWeight: 600 }}><Ic name="user" size={15} /> {name}</span>
+              <button onClick={onSignOut} aria-label="Sign out" title="Sign out" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 9, border: `1px solid ${T.line}`, background: T.panel, color: T.inkSoft, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}><Ic name="logout" size={14} /> Sign out</button>
+            </span>
+          </div>
+          <div className="of-flowline" style={{ height: 3, marginTop: 12, borderRadius: 3, background: `linear-gradient(90deg, ${T.accent}, ${T.amber}, ${T.green}, ${T.accent})`, backgroundSize: "200% 100%", animation: "flow 6s linear infinite" }} />
+        </header>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+          <Seg view={view} setView={setView} />
+          <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
+            <span style={{ position: "absolute", left: 12, top: 10, color: T.inkSoft }}><Ic name="search" size={16} /></span>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tasks" style={{ width: "100%", padding: "9px 12px 9px 36px", borderRadius: 10, border: `1px solid ${T.line}`, background: T.panel, fontSize: 14, color: T.ink }} />
+          </div>
+          <button onClick={() => setEditing({ status: "todo" })} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}><Ic name="plus" size={17} /> Add task</button>
+        </div>
+
+        {tags.length > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+            <Chip active={!tagFilter} onClick={() => setTagFilter(null)}>All</Chip>
+            {tags.map((tg) => <Chip key={tg} active={tagFilter === tg} onClick={() => setTagFilter(tagFilter === tg ? null : tg)}>{tg}</Chip>)}
+          </div>
+        )}
+
+        {!loaded ? (
+          <p style={{ color: T.inkSoft, fontSize: 14 }}>Loading your board…</p>
+        ) : view === "board" ? (
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+            {COLUMNS.map((col, i) => (
+              <section key={col.id} style={{ background: T.panelAlt, border: `1px solid ${T.line}`, borderRadius: 14, padding: 14, minHeight: 220 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, padding: "0 2px" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: col.dot }} />
+                  <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, letterSpacing: "0.01em" }}>{col.name}</h2>
+                  <span style={{ marginLeft: "auto", fontFamily: "'Spline Sans Mono', monospace", fontSize: 12, color: T.inkSoft }}>{counts[i]}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {byCol(col.id).map((t) => <Card key={t.id} task={t} onMove={move} onEdit={() => setEditing(t)} onDelete={() => remove(t.id)} />)}
+                  {byCol(col.id).length === 0 && <p style={{ fontSize: 13, color: T.inkSoft, lineHeight: 1.5, padding: "6px 2px", margin: 0 }}>{col.empty}</p>}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <CalendarView tasks={visible} cursor={cursor} setCursor={setCursor} onAddOn={(due) => setEditing({ status: "todo", due })} onEdit={(t) => setEditing(t)} />
+        )}
+      </div>
+
+      {editing && <Editor initial={editing} existingTags={tags} onCancel={() => setEditing(null)} onSave={save} />}
+    </div>
+  );
+}
+
+/* =========================================================================
+   7. Root: auth gate
+   ========================================================================= */
+function App() {
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    if (!sb) { setSession(null); return; }
+    sb.auth.getSession().then(({ data }) => setSession(data.session || null));
+    const { data: sub } = sb.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const signOut = async () => { if (sb) await sb.auth.signOut(); };
+
+  if (session === undefined) return <div style={{ minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: T.inkSoft }}>Loading…</div>;
+  if (!session) return <Auth />;
+  return <Workspace session={session} onSignOut={signOut} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
